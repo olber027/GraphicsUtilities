@@ -14,24 +14,23 @@
 
 namespace linear_algebra {
 
-    //the concept of a vector is going to be handled fairly loosely here in that
-    //I'm allowing them to switch freely between a row and a column vector. You
-    //can treat this as essentially automatically transposing a vector to make it
-    //work with whatever operation it needs to be used in at the time. This means
-    //that I'm allowing vector*matrix and matrix*vector with the same vector, regardless
-    //of the fact that this doesn't make sense from a purely mathematical standpoint.
-    //Just pretend I'm doing a transpose operation and live happily in your mathematical bliss.
+    // The vectors, by default, will be created as a column vector but they can be transposed to a row vector.
+    // an implicit transposition is done for vector-vector operations if necessary.
     class Vector {
     private:
         int size;
         double* vals;
         int memorySize;
+        int rows, cols;
 
         void destroy() {
             if(vals != nullptr) {
                 delete [] vals;
                 size = 0;
                 vals = nullptr;
+                memorySize = 0;
+                rows = 0;
+                cols = 0;
             }
         }
 
@@ -40,6 +39,8 @@ namespace linear_algebra {
             size = newSize;
             vals = new double[size];
             memorySize = size;
+            rows = size;
+            cols = 1;
         }
 
         void extend(const int numValsToAdd, const bool addToFront) {
@@ -78,6 +79,11 @@ namespace linear_algebra {
             }
 
             size += numValsToAdd;
+            if(cols > rows) {
+                cols = size;
+            } else {
+                rows = size;
+            }
         }
 
         void extend(const int numValsToAdd) {
@@ -111,14 +117,33 @@ namespace linear_algebra {
             throw std::runtime_error(str.str());
         }
 
+        double round(const double val, const double precision) const {
+            if(fabs(val - std::round(val)) < precision) {
+                return std::round(val);
+            }
+            return val;
+        }
+
     public:
 
-        Vector() : size(0), vals(nullptr), memorySize(0) {}
+        Vector() : size(0), vals(nullptr), memorySize(0), rows(0), cols(0) {}
         Vector(const int initialSize) : Vector() {
             initialize(initialSize);
         }
+        Vector(const int initialSize, const bool rowVector) : Vector() {
+            initialize(initialSize);
+            if(rowVector) {
+                transpose();
+            }
+        }
         Vector(const int initialSize, const double fillValue) : Vector(initialSize) {
             fillVector(fillValue);
+        }
+        Vector(const int initialSize, const double fillValue, const bool rowVector) : Vector(initialSize) {
+            fillVector(fillValue);
+            if(rowVector) {
+                transpose();
+            }
         }
         Vector(double a, double b) : Vector(2) {
             vals[0] = a;
@@ -139,12 +164,13 @@ namespace linear_algebra {
                 vals[i] = source[i];
             }
         }
-        Vector(const Vector& other) {
-            if(&other != this) {
-                initialize(other.size);
-                for(int i = 0; i < size; i++) {
-                    vals[i] = other.vals[i];
-                }
+        Vector(const Vector& other) : Vector() {
+            initialize(other.size);
+            for(int i = 0; i < size; i++) {
+                vals[i] = other.vals[i];
+            }
+            if(other.isRowVector()) {
+                transpose();
             }
         }
         Vector(Vector&& other) noexcept {
@@ -156,7 +182,7 @@ namespace linear_algebra {
             destroy();
         }
 
-        double getValue(const int index) const {
+        double  getValue(const int index) const {
             checkBounds(index);
             return vals[index];
         }
@@ -165,7 +191,7 @@ namespace linear_algebra {
             vals[index] = newVal;
             return *this;
         }
-        Vector getValues(const int startIndex, const int endIndex) const {
+        Vector  getValues(const int startIndex, const int endIndex) const {
             checkBounds(startIndex, endIndex);
             Vector result;
             for(int i = startIndex; i <= endIndex; i++) {
@@ -177,6 +203,12 @@ namespace linear_algebra {
         Vector& pushBack(const double newVal) {
             extend(1);
             vals[size-1] = newVal;
+            return *this;
+        }
+        template<typename... Args>
+        Vector& pushBack(const double newVal, Args... args) {
+            pushBack(newVal);
+            pushBack(args...);
             return *this;
         }
         Vector& pushBack(const Vector& newVals) {
@@ -237,16 +269,16 @@ namespace linear_algebra {
         }
 
         // vector status
-        bool is2d() const {
+        bool   is2d() const {
             return size == 2;
         }
-        bool is3d() const {
+        bool   is3d() const {
             return size == 3;
         }
-        bool isUnit() const {
+        bool   isUnit() const {
             return magnitude() == 1;
         }
-        bool isZero() const {
+        bool   isZero() const {
             for(int i = 0; i < size; i++) {
                 if(vals[i] != 0) {
                     return false;
@@ -254,13 +286,31 @@ namespace linear_algebra {
             }
             return true;
         }
-        bool isEmpty() const {
+        bool   isEmpty() const {
             return size == 0;
         }
-        int getSize() const {
+        bool   isRowVector() const {
+            if(rows == 1) {
+                return true;
+            }
+            return false;
+        }
+        bool   isColumnVector() const {
+            if(cols == 1) {
+                return true;
+            }
+            return false;
+        }
+        int    numRows() const {
+            return rows;
+        }
+        int    numCols() const {
+            return cols;
+        }
+        int    getSize() const {
             return size;
         }
-        int getMemorySize() const {
+        int    getMemorySize() const {
             return memorySize;
         }
         double magnitude() const {
@@ -325,31 +375,29 @@ namespace linear_algebra {
             return *this;
         }
 
-        bool operator==(const Vector& rhs) {
+        bool operator==(const Vector& rhs) const {
+            return equals(rhs);
+        }
+        bool operator!=(const Vector& rhs) const {
+            return !equals(rhs);
+        }
+        bool equals(const Vector& rhs) const {
+            return equals(rhs, 0.0000000001);
+        }
+        bool equals(const Vector& rhs, const double precision) const {
             if(rhs.size != size) {
                 return false;
             }
             for(int i = 0; i < size; i++) {
-                if(vals[i] != rhs.vals[i]) {
+                if(round(vals[i], precision) != round(rhs.vals[i], precision)) {
                     return false;
                 }
             }
             return true;
         }
-        bool operator!=(const Vector& rhs) {
-            if(size != rhs.size) {
-                return true;
-            }
-            for(int i = 0; i < size; i++) {
-                if(vals[i] != rhs.vals[i]) {
-                    return true;
-                }
-            }
-            return false;
-        }
 
         // scalar multiplication
-        template<typename T> Vector operator*(const T scale) const {
+        template<typename T> Vector  operator*(const T scale) const {
             Vector result(size);
             for(int i = 0; i < size; i++) {
                 result.vals[i] = vals[i] * scale;
@@ -371,7 +419,7 @@ namespace linear_algebra {
         }
 
         // scalar division
-        template<typename T> Vector operator/(const T scale) const {
+        template<typename T> Vector  operator/(const T scale) const {
             Vector result(size);
             for(int i = 0; i < size; i++) {
                 result.vals[i] = vals[i] / scale;
@@ -422,7 +470,7 @@ namespace linear_algebra {
         }
 
         // vector addition
-        Vector operator+(const Vector& rhs) const {
+        Vector  operator+(const Vector& rhs) const {
             if(size != rhs.size) {
                 throwSizeMismatchError(*this, rhs);
             }
@@ -452,7 +500,7 @@ namespace linear_algebra {
         }
 
         // vector subtraction
-        Vector operator-(const Vector& rhs) const {
+        Vector  operator-(const Vector& rhs) const {
             if(size != rhs.size) {
                 throwSizeMismatchError(*this, rhs);
             }
@@ -482,6 +530,12 @@ namespace linear_algebra {
         }
 
         // vector operations
+        Vector& transpose() {
+            int temp = rows;
+            rows = cols;
+            cols = temp;
+            return *this;
+        }
         Vector& normalize() {
             double mag = magnitude();
             for(int i = 0; i < size; i++) {
@@ -489,7 +543,7 @@ namespace linear_algebra {
             }
             return *this;
         }
-        Vector getNormalized() const {
+        Vector  getNormalized() const {
             Vector result(size);
             double mag = magnitude();
             for(int i = 0; i < size; i++) {
@@ -501,7 +555,7 @@ namespace linear_algebra {
             normalize();
             return *this;
         }
-        Vector getUnitVector() const {
+        Vector  getUnitVector() const {
             return getNormalized();
         }
         Vector& abs() {
@@ -519,7 +573,7 @@ namespace linear_algebra {
             }
             if(newSize > size) {
                 extend(newSize);
-            } else {
+            } else if(newSize < size) {
                 double* temp = new double[newSize];
                 for(int i = 0; i < newSize; i++) {
                     temp[i] = vals[i];
@@ -552,10 +606,9 @@ namespace linear_algebra {
             changeSize(3);
             return *this;
         }
-        void clear() {
+        void    clear() {
             destroy();
         }
-
     };
 }
 

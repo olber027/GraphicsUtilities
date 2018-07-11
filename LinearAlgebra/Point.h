@@ -20,12 +20,15 @@ namespace linear_algebra {
         int size;
         double* vals;
         int memorySize;
+        int rows, cols;
 
         void destroy() {
             if(vals != nullptr) {
                 delete [] vals;
                 size = 0;
                 vals = nullptr;
+                rows = 0;
+                cols = 0;
             }
         }
 
@@ -34,6 +37,8 @@ namespace linear_algebra {
             size = newSize;
             vals = new double[size];
             memorySize = size;
+            rows = size;
+            cols = 1;
         }
 
         void extend(const int numValsToAdd, const bool addToFront) {
@@ -72,6 +77,11 @@ namespace linear_algebra {
             }
 
             size += numValsToAdd;
+            if(cols > rows) {
+                cols = size;
+            } else {
+                rows = size;
+            }
         }
 
         void extend(const int numValsToAdd) {
@@ -105,14 +115,42 @@ namespace linear_algebra {
             throw std::runtime_error(str.str());
         }
 
+        void throwSizeMismatchError(const Point& p1, const Point& p2) const {
+            std::stringstream str;
+            str << "Points must be of the same size to perform calculations." << std::endl;
+            str << "Given points were: " << std::endl;
+            str << p1 << std::endl;
+            str << p2 << std::endl;
+            throw std::runtime_error(str.str());
+        }
+
+        double round(const double val, const double precision) const {
+            if(fabs(val - std::round(val)) < precision) {
+                return std::round(val);
+            }
+            return val;
+        }
+
     public:
 
-        Point() : size(0), vals(nullptr), memorySize(0) {}
+        Point() : size(0), vals(nullptr), memorySize(0), rows(0), cols(0) {}
         Point(const int initialSize) : Point() {
             initialize(initialSize);
         }
+        Point(const int initialSize, const bool rowVector) : Point() {
+            initialize(initialSize);
+            if(rowVector) {
+                transpose();
+            }
+        }
         Point(const int initialSize, const double fillValue) : Point(initialSize) {
             fillPoint(fillValue);
+        }
+        Point(const int initialSize, const double fillValue, const bool rowVector) : Point(initialSize) {
+            fillPoint(fillValue);
+            if(rowVector) {
+                transpose();
+            }
         }
         Point(double a, double b) : Point(2) {
             vals[0] = a;
@@ -134,11 +172,9 @@ namespace linear_algebra {
             }
         }
         Point(const Point& other) : Point() {
-            if(&other != this) {
-                initialize(other.size);
-                for(int i = 0; i < size; i++) {
-                    vals[i] = other.vals[i];
-                }
+            initialize(other.size);
+            for(int i = 0; i < size; i++) {
+                vals[i] = other.vals[i];
             }
         }
         Point(const Point&& other) noexcept {
@@ -159,7 +195,7 @@ namespace linear_algebra {
             vals[index] = newVal;
             return *this;
         }
-        Point getValues(const int startIndex, const int endIndex) const {
+        Point  getValues(const int startIndex, const int endIndex) const {
             checkBounds(startIndex, endIndex);
             Point result;
             for(int i = startIndex; i <= endIndex; i++) {
@@ -171,6 +207,12 @@ namespace linear_algebra {
         Point& pushBack(const double newVal) {
             extend(1);
             vals[size-1] = newVal;
+            return *this;
+        }
+        template<typename... Args>
+        Point& pushBack(const double newVal, Args... args) {
+            pushBack(newVal);
+            pushBack(args...);
             return *this;
         }
         Point& pushBack(const Point& newVals) {
@@ -231,13 +273,13 @@ namespace linear_algebra {
         }
 
         // Point status
-        bool is2d() const {
+        bool   is2d() const {
             return size == 2;
         }
-        bool is3d() const {
+        bool   is3d() const {
             return size == 3;
         }
-        bool isZero() const {
+        bool   isZero() const {
             for(int i = 0; i < size; i++) {
                 if(vals[i] != 0) {
                     return false;
@@ -245,13 +287,31 @@ namespace linear_algebra {
             }
             return true;
         }
-        bool isEmpty() const {
+        bool   isEmpty() const {
             return size == 0;
         }
-        int getSize() const {
+        bool   isRowVector() const {
+            if(rows == 1) {
+                return true;
+            }
+            return false;
+        }
+        bool   isColumnVector() const {
+            if(cols == 1) {
+                return true;
+            }
+            return false;
+        }
+        int    numRows() const {
+            return rows;
+        }
+        int    numCols() const {
+            return cols;
+        }
+        int    getSize() const {
             return size;
         }
-        int getMemorySize() const {
+        int    getMemorySize() const {
             return memorySize;
         }
         double min() const {
@@ -309,31 +369,29 @@ namespace linear_algebra {
             return *this;
         }
 
-        bool operator==(const Point& rhs) {
-            if(size != rhs.size) {
+        bool operator==(const Point& rhs) const {
+            return equals(rhs);
+        }
+        bool operator!=(const Point& rhs) const {
+            return !equals(rhs);
+        }
+        bool equals(const Point& rhs) const {
+            return equals(rhs, 0.0000000001);
+        }
+        bool equals(const Point& rhs, const double precision) const {
+            if(rhs.size != size) {
                 return false;
             }
             for(int i = 0; i < size; i++) {
-                if(vals[i] != rhs.vals[i]) {
+                if(round(vals[i], precision) != round(rhs.vals[i], precision)) {
                     return false;
                 }
             }
             return true;
         }
-        bool operator!=(const Point& rhs) {
-            if(size != rhs.size) {
-                return true;
-            }
-            for(int i = 0; i < size; i++) {
-                if(vals[i] != rhs.vals[i]) {
-                    return true;
-                }
-            }
-            return false;
-        }
 
         // scalar multiplication
-        template<typename T> Point operator*(const T scale) const {
+        template<typename T> Point  operator*(const T scale) const {
             Point result(size);
             for(int i = 0; i < size; i++) {
                 result.vals[i] = vals[i] * scale;
@@ -355,7 +413,7 @@ namespace linear_algebra {
         }
 
         // scalar division
-        template<typename T> Point operator/(const T scale) const {
+        template<typename T> Point  operator/(const T scale) const {
             Point result(size);
             for(int i = 0; i < size; i++) {
                 result.vals[i] = vals[i] / scale;
@@ -370,7 +428,7 @@ namespace linear_algebra {
         }
 
         // vector addition
-        Point operator+(const Vector& vec) const {
+        Point  operator+(const Vector& vec) const {
             if(size != vec.getSize()) {
                 throwSizeMismatchError(*this, vec);
             }
@@ -400,7 +458,7 @@ namespace linear_algebra {
         }
 
         // vector subtraction
-        Point operator-(const Vector& vec) const {
+        Point  operator-(const Vector& vec) const {
             if(size != vec.getSize()) {
                 throwSizeMismatchError(*this, vec);
             }
@@ -429,7 +487,35 @@ namespace linear_algebra {
             return *this;
         }
 
+        // point subtraction
+        Vector operator-(const Point& point) const {
+            if(size != point.size) {
+                throwSizeMismatchError(*this, point);
+            }
+            Vector result(size);
+            for(int i = 0; i < size; i++) {
+                result[i] = vals[i] - point.vals[i];
+            }
+            return result;
+        }
+        Vector subtract(const Point& point) const {
+            if(size != point.size) {
+                throwSizeMismatchError(*this, point);
+            }
+            Vector result(size);
+            for(int i = 0; i < size; i++) {
+                result[i] = vals[i] - point.vals[i];
+            }
+            return result;
+        }
+
         // point operations
+        Point& transpose() {
+            int temp = rows;
+            rows = cols;
+            cols = temp;
+            return *this;
+        }
         Point& abs() {
             for(int i = 0; i < size; i++) {
                 if(vals[i] < 0) {
@@ -445,7 +531,7 @@ namespace linear_algebra {
             }
             if(newSize > size) {
                 extend(newSize);
-            } else {
+            } else if(newSize < size) {
                 double* temp = new double[newSize];
                 for(int i = 0; i < newSize; i++) {
                     temp[i] = vals[i];
@@ -478,7 +564,7 @@ namespace linear_algebra {
             changeSize(3);
             return *this;
         }
-        void clear() {
+        void   clear() {
             destroy();
         }
 
