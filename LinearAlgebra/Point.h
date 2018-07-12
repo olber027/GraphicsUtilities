@@ -316,7 +316,7 @@ namespace linear_algebra {
         }
         double min() const {
             if(size == 0) {
-                std::runtime_error("Cannot find the min of an empty vector");
+                throw std::runtime_error("Cannot find the min of an empty vector");
             }
             double result = vals[0];
             for(int i = 1; i < size; i++) {
@@ -328,7 +328,7 @@ namespace linear_algebra {
         }
         double max() const {
             if(size == 0) {
-                std::runtime_error("Cannot find the max of an empty vector");
+                throw std::runtime_error("Cannot find the max of an empty vector");
             }
             double result = vals[0];
             for(int i = 1; i < size; i++) {

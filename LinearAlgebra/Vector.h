@@ -322,7 +322,7 @@ namespace linear_algebra {
         }
         double min() const {
             if(size == 0) {
-                std::runtime_error("Cannot find the min of an empty vector");
+                throw std::runtime_error("Cannot find the min of an empty vector");
             }
             double result = vals[0];
             for(int i = 1; i < size; i++) {
@@ -334,7 +334,7 @@ namespace linear_algebra {
         }
         double max() const {
             if(size == 0) {
-                std::runtime_error("Cannot find the max of an empty vector");
+                throw std::runtime_error("Cannot find the max of an empty vector");
             }
             double result = vals[0];
             for(int i = 1; i < size; i++) {
@@ -604,6 +604,18 @@ namespace linear_algebra {
         Vector& toVector3() {
             // This is here to undo the toVector4 command
             changeSize(3);
+            return *this;
+        }
+        Vector& toRowVector() {
+            if(isColumnVector()) {
+                transpose();
+            }
+            return *this;
+        }
+        Vector& toColumnVector() {
+            if(isRowVector()) {
+                transpose();
+            }
             return *this;
         }
         void    clear() {

@@ -183,7 +183,7 @@ namespace linear_algebra {
         }
         Vector& getRow(const int rowIndex) const {
             checkBounds(rowIndex);
-            return vals[rowIndex];
+            return vals[rowIndex].toRowVector();
         }
         Vector  getCol(const int columnIndex) const {
             Vector result(rows);
@@ -212,7 +212,7 @@ namespace linear_algebra {
                     result[j] += mat.vals[i][j] * vec[j];
                 }
             }
-            return result;
+            return result.toRowVector();
         }
         Point operator*(const Point& point) const {
             checkDimensionCompatibility(*this, point);
